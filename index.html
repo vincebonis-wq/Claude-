@@ -244,16 +244,16 @@ function loadCoach() {
     if (d.adresse)  set('cAdresse',  d.adresse);
     if (d.agrement) set('cAgrement', d.agrement);
     if (d.annee)    document.getElementById('cAnnee').value = d.annee;
-    updateCoachStatus();
+    updateCoachStatus(true);
   } catch {}
 }
 
-function updateCoachStatus() {
+function updateCoachStatus(autoCollapse = false) {
   const ok = v('cPrenom') && v('cNom') && v('cAdresse') && v('cAgrement');
   const el = document.getElementById('statusCoach');
   el.textContent = ok ? '✓ Sauvegardé' : 'À compléter';
   el.className   = 'card-status' + (ok ? '' : ' warn');
-  if (ok) collapseCard('Coach');
+  if (ok && autoCollapse) collapseCard('Coach');
 }
 
 // ── Card toggle ────────────────────────────────────────────────────────────
