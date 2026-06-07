@@ -6,6 +6,7 @@
   <title>Attestation Fiscale SAP</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -14,63 +15,134 @@
       --green-border:#b8ddb8;--red:#c0392b;--radius:10px;
     }
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:32px 16px}
-    .container{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+    .container{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+
+    /* Header */
     .header{text-align:center;padding:8px 0 4px}
     .header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
     .header p{color:var(--muted);font-size:13px;margin-top:3px}
+
+    /* Cards */
     .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
     .card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none}
-    .card-head-left{display:flex;align-items:center;gap:10px}
+    .card-head-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
     .card-status{font-size:12px;font-weight:500;color:var(--green);background:var(--green-bg);border:1px solid var(--green-border);padding:2px 8px;border-radius:20px}
     .card-status.warn{color:#92400e;background:#fef3c7;border-color:#fcd34d}
     .card-body{padding:18px;padding-top:0;border-top:1px solid var(--border)}
     .card-body.hidden{display:none}
-    .toggle-btn{font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px}
+    .toggle-btn{font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;white-space:nowrap}
     .toggle-btn:hover{background:var(--bg)}
+
+    /* Forms */
     .grid{display:grid;gap:12px}
     .grid-2{grid-template-columns:1fr 1fr}
+    .grid-3{grid-template-columns:1fr 1fr 1fr}
     .field{display:flex;flex-direction:column;gap:5px}
     .field.span-2{grid-column:1/-1}
+    .field.span-3{grid-column:1/-1}
     label{font-size:12px;font-weight:500;color:#555}
     label .req{color:var(--red)}
-    input,select{padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:#fafafa;width:100%;transition:border-color .12s,background .12s}
-    input:focus,select:focus{outline:none;border-color:var(--accent);background:var(--white)}
+    input,select,textarea{padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:#fafafa;width:100%;transition:border-color .12s,background .12s}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);background:var(--white)}
     input[readonly]{background:#f0f0f0;color:#666;cursor:default}
     input.computed{background:#f5f5f0;color:#444;font-weight:500}
     .save-hint{font-size:11px;color:var(--muted);margin-top:8px}
-    .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:14px}
+
+    /* Upload zones */
+    .upload-zone{border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+    .upload-zone:hover{border-color:var(--accent);background:#f8f8f5}
+    .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .upload-zone p{font-size:13px;color:var(--muted);pointer-events:none}
+    .upload-zone span{font-size:11px;color:#aaa;pointer-events:none}
+    .upload-preview{width:100%;max-height:80px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:#fff;padding:4px;display:block;margin-top:6px}
+    .upload-preview.sig{max-height:60px}
+    .upload-clear{font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px;font-family:inherit}
+
+    /* Drop zone (import) */
+    .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:24px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:14px}
     .drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:#f8f8f5}
-    .drop-zone p{font-size:14px;color:var(--muted);margin-bottom:6px}
+    .drop-zone p{font-size:14px;color:var(--muted);margin-bottom:4px}
     .drop-zone span{font-size:12px;color:#aaa}
     #fileInput{display:none}
-    .client-count{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;margin-top:14px;font-size:13px;color:var(--green);font-weight:500}
+
+    /* Client list */
+    .client-count{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;margin-top:12px;font-size:13px;color:var(--green);font-weight:500}
     .client-count button{font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);padding:3px 10px;border-radius:6px;cursor:pointer;font-family:inherit}
     .client-count button:hover{background:var(--white)}
-    .main-card .card-body{padding:18px}
-    .select-client{font-size:15px;padding:11px 13px;border:2px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;width:100%}
-    .select-client:focus{border-color:var(--accent);outline:none}
-    .divider{height:1px;background:var(--border);margin:16px 0}
-    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .client-list{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:12px;max-height:220px;overflow-y:auto}
+    .client-list.hidden{display:none}
+    .client-row{display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);gap:8px;font-size:13px}
+    .client-row:last-child{border-bottom:none}
+    .client-row:hover{background:#fafaf8}
+    .client-row-name{flex:1;font-weight:500}
+    .client-row-email{font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .client-row button{background:none;border:none;cursor:pointer;padding:3px 5px;color:var(--muted);border-radius:4px;font-size:13px;flex-shrink:0}
+    .client-row button:hover{background:var(--bg)}
+    .client-row .del-btn:hover{color:var(--red)}
+    .btn-add-client{width:100%;margin-top:10px;padding:9px;border:1px dashed var(--border);background:none;border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit;transition:border-color .12s,color .12s}
+    .btn-add-client:hover{border-color:var(--accent);color:var(--accent)}
+
+    /* Tabs (Individual / Batch) */
+    .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px}
+    .tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
+    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+
+    /* Batch table */
+    .batch-table-wrap{overflow-x:auto;margin-top:0;border:1px solid var(--border);border-radius:8px}
+    .batch-table{width:100%;border-collapse:collapse;font-size:13px}
+    .batch-table th{padding:8px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#fafaf8;border-bottom:1px solid var(--border)}
+    .batch-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+    .batch-table tr:last-child td{border-bottom:none}
+    .batch-table tr:hover td{background:#fafaf8}
+    .batch-table input{padding:6px 8px;font-size:13px;border:1px solid transparent;background:transparent;border-radius:6px;width:100%}
+    .batch-table input:focus{border-color:var(--border);background:var(--white)}
+    .batch-table input[readonly]{background:transparent;color:var(--muted)}
+    .batch-hint{font-size:12px;color:var(--muted);margin-top:8px;text-align:center}
+    .batch-summary{display:flex;justify-content:space-between;align-items:center;padding:10px 13px;background:#fafaf8;border:1px solid var(--border);border-radius:8px;margin-top:12px;font-size:13px}
+    .batch-summary span{color:var(--muted)}
+    .batch-summary strong{color:var(--green)}
+
+    /* Generate buttons */
     .btn-generate{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:14px;transition:opacity .15s,transform .1s;letter-spacing:-.2px}
     .btn-generate:hover{opacity:.88}
     .btn-generate:active{transform:scale(.99)}
     .btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none}
     .shortcut{display:block;text-align:center;font-size:11px;color:var(--muted);margin-top:6px}
+
+    /* Individual */
+    .select-client{font-size:15px;padding:11px 13px;border:2px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;width:100%}
+    .select-client:focus{border-color:var(--accent);outline:none}
+    .divider{height:1px;background:var(--border);margin:16px 0}
+    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+    /* Modals */
     .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
     .modal-bg.hidden{display:none}
-    .modal{background:var(--white);border-radius:14px;padding:24px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+    .modal{background:var(--white);border-radius:14px;padding:24px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
     .modal h2{font-size:16px;font-weight:700;margin-bottom:6px}
-    .modal p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
-    .modal .field{margin-bottom:14px}
-    .modal label{font-size:13px;margin-bottom:6px}
+    .modal p{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+    .modal .field{margin-bottom:12px}
+    .modal label{font-size:13px;margin-bottom:5px;display:block}
     .modal-actions{display:flex;gap:10px;margin-top:20px}
     .btn-secondary{flex:1;padding:10px;border:1px solid var(--border);background:var(--white);border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
     .btn-primary{flex:2;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
     .error-msg{font-size:12px;color:var(--red);margin-top:4px}
+
+    /* Progress */
+    .progress-bar-wrap{height:6px;background:var(--border);border-radius:3px;margin-top:12px;overflow:hidden;display:none}
+    .progress-bar{height:100%;background:var(--accent);border-radius:3px;transition:width .2s}
+
+    /* Toast */
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;transition:transform .25s ease;z-index:200;white-space:nowrap}
     .toast.show{transform:translateX(-50%) translateY(0)}
-    @media(max-width:520px){.grid-2,.row-3{grid-template-columns:1fr}.field.span-2{grid-column:1}}
+
+    @media(max-width:560px){
+      .grid-2,.row-3,.grid-3{grid-template-columns:1fr}
+      .field.span-2,.field.span-3{grid-column:1}
+    }
   </style>
 </head>
 <body>
@@ -81,7 +153,7 @@
     <p>Crédit d'impôt 50% · Service à la Personne</p>
   </div>
 
-  <!-- 1. Coach info -->
+  <!-- ══ 1. INFOS COACH + PERSONNALISATION ══════════════════════════════════ -->
   <div class="card" id="cardCoach">
     <div class="card-head" onclick="toggleCard('Coach')">
       <div class="card-head-left">
@@ -92,6 +164,8 @@
     </div>
     <div class="card-body" id="bodyCoach">
       <div style="height:14px"></div>
+
+      <!-- Identité -->
       <div class="grid grid-2">
         <div class="field"><label>Prénom <span class="req">*</span></label><input id="cPrenom" placeholder="Jean" oninput="saveCoach()" /></div>
         <div class="field"><label>Nom <span class="req">*</span></label><input id="cNom" placeholder="Dupont" oninput="saveCoach()" /></div>
@@ -102,93 +176,163 @@
             <option value="2024">2024</option><option value="2025">2025</option><option value="2023">2023</option>
           </select>
         </div>
+        <div class="field span-2">
+          <label>Type de prestation</label>
+          <input id="cPrestation" placeholder="Coaching sportif à domicile" oninput="saveCoach()" />
+        </div>
       </div>
-      <p class="save-hint">Sauvegardé automatiquement dans votre navigateur.</p>
+
+      <!-- Logo + Signature -->
+      <div class="grid grid-2" style="margin-top:14px">
+        <div class="field">
+          <label>Logo (optionnel)</label>
+          <div class="upload-zone">
+            <p>Cliquez pour ajouter votre logo</p>
+            <span>PNG, JPG — apparaît en haut du PDF</span>
+            <input type="file" accept="image/*" onchange="loadImage('logo', this)" />
+          </div>
+          <img id="logoPreview" class="upload-preview hidden" />
+          <button class="upload-clear hidden" id="logoClear" onclick="clearImage('logo')">✕ Supprimer</button>
+        </div>
+        <div class="field">
+          <label>Signature numérique (optionnel)</label>
+          <div class="upload-zone">
+            <p>Cliquez pour ajouter votre signature</p>
+            <span>PNG fond transparent recommandé</span>
+            <input type="file" accept="image/*" onchange="loadImage('signature', this)" />
+          </div>
+          <img id="signaturePreview" class="upload-preview sig hidden" />
+          <button class="upload-clear hidden" id="signatureClear" onclick="clearImage('signature')">✕ Supprimer</button>
+        </div>
+      </div>
+
+      <p class="save-hint">Tout est sauvegardé automatiquement dans votre navigateur.</p>
     </div>
   </div>
 
-  <!-- 2. Import clients -->
+  <!-- ══ 2. BASE CLIENTS ════════════════════════════════════════════════════ -->
   <div class="card" id="cardImport">
     <div class="card-head" onclick="toggleCard('Import')">
       <div class="card-head-left">
         <span class="card-title">Base clients</span>
-        <span class="card-status warn" id="statusImport">Aucun fichier</span>
+        <span class="card-status warn" id="statusImport">Aucun client</span>
       </div>
-      <button class="toggle-btn" id="toggleImport">Importer</button>
+      <button class="toggle-btn" id="toggleImport">Gérer</button>
     </div>
     <div class="card-body" id="bodyImport">
       <div style="height:14px"></div>
+
+      <!-- Import -->
       <div class="drop-zone" id="dropZone"
         onclick="document.getElementById('fileInput').click()"
         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
         <p>Glissez votre fichier ici ou cliquez pour parcourir</p>
-        <span>CSV, Excel (.xlsx, .xls) acceptés</span>
+        <span>CSV, Excel (.xlsx, .xls) — colonnes prénom, nom, adresse, email</span>
       </div>
       <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="handleFile(this.files[0])" />
+
+      <!-- Compteur -->
       <div class="client-count hidden" id="clientCount">
         <span id="clientCountText"></span>
-        <button onclick="document.getElementById('fileInput').click()">Réimporter</button>
+        <button onclick="document.getElementById('fileInput').click()">Réimporter CSV/Excel</button>
       </div>
+
+      <!-- Liste clients -->
+      <div class="client-list hidden" id="clientList"></div>
+
+      <!-- Ajouter manuellement -->
+      <button class="btn-add-client" onclick="showClientModal(null)">+ Ajouter un client manuellement</button>
     </div>
   </div>
 
-  <!-- 3. Générer -->
+  <!-- ══ 3. GÉNÉRATION ══════════════════════════════════════════════════════ -->
   <div class="card main-card">
     <div class="card-head" style="cursor:default">
       <div class="card-head-left">
-        <span class="card-title">Générer une attestation</span>
+        <span class="card-title">Générer des attestations</span>
       </div>
     </div>
-    <div class="card-body">
-      <div class="field">
-        <label>Client <span class="req">*</span></label>
-        <select class="select-client" id="clientSelect" onchange="onClientSelect()">
-          <option value="">— Sélectionner un client —</option>
-        </select>
+    <div class="card-body" style="padding:18px">
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('individual')">Attestation individuelle</div>
+        <div class="tab" onclick="switchTab('batch')">Génération en masse (ZIP)</div>
       </div>
-      <div class="field" id="fieldAdresse" style="margin-top:10px;display:none">
-        <label>Adresse du client</label>
-        <input id="clientAdresse" placeholder="Non renseignée — saisie manuelle possible" />
+
+      <!-- ── TAB : Individuelle ── -->
+      <div class="tab-panel active" id="panelIndividual">
+        <div class="field">
+          <label>Client <span class="req">*</span></label>
+          <select class="select-client" id="clientSelect" onchange="onClientSelect()">
+            <option value="">— Sélectionner un client —</option>
+          </select>
+        </div>
+        <div class="field" id="fieldAdresse" style="margin-top:10px;display:none">
+          <label>Adresse du client</label>
+          <input id="clientAdresse" placeholder="Non renseignée — saisie manuelle possible" />
+        </div>
+        <div class="divider"></div>
+        <div class="row-3">
+          <div class="field">
+            <label>Montant annuel (€) <span class="req">*</span></label>
+            <input type="number" id="montant" placeholder="1200" min="0" step="0.01" oninput="calculer()" />
+          </div>
+          <div class="field">
+            <label>Nb de séances <span class="req">*</span></label>
+            <input type="number" id="nbSeances" placeholder="40" min="1" oninput="calculer()" />
+          </div>
+          <div class="field">
+            <label>Durée / séance (h)</label>
+            <input type="number" id="dureeSeance" value="1" min="0.5" step="0.5" oninput="calculer()" />
+          </div>
+        </div>
+        <div class="row-3" style="margin-top:10px">
+          <div class="field"><label>Total heures</label><input class="computed" id="totalH" readonly placeholder="—" /></div>
+          <div class="field"><label>Taux horaire</label><input class="computed" id="tauxH" readonly placeholder="—" /></div>
+          <div class="field"><label>Crédit d'impôt (50%)</label><input class="computed" id="creditImpot" readonly placeholder="—" /></div>
+        </div>
+        <button class="btn-generate" id="btnGen" onclick="genererPDF()">⬇ Télécharger l'attestation PDF</button>
+        <span class="shortcut">Raccourci : Ctrl + Entrée</span>
       </div>
-      <div class="divider"></div>
-      <div class="row-3">
-        <div class="field">
-          <label>Montant annuel (€) <span class="req">*</span></label>
-          <input type="number" id="montant" placeholder="1200" min="0" step="0.01" oninput="calculer()" />
+
+      <!-- ── TAB : Batch ── -->
+      <div class="tab-panel" id="panelBatch">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+          Renseignez le montant et le nombre de séances pour chaque client, puis générez tous les PDFs en une fois dans un fichier ZIP.
+        </p>
+        <div class="batch-table-wrap">
+          <table class="batch-table" id="batchTable">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Montant (€)</th>
+                <th>Séances</th>
+                <th>Durée/séance (h)</th>
+                <th>Total h</th>
+                <th>Crédit (50%)</th>
+              </tr>
+            </thead>
+            <tbody id="batchBody"></tbody>
+          </table>
         </div>
-        <div class="field">
-          <label>Nb de séances <span class="req">*</span></label>
-          <input type="number" id="nbSeances" placeholder="40" min="1" oninput="calculer()" />
+        <p class="batch-hint" id="batchHint">Importez ou ajoutez des clients pour les voir ici.</p>
+        <div class="batch-summary hidden" id="batchSummary">
+          <span>Total clients à générer : <strong id="batchCount">0</strong></span>
+          <strong id="batchTotalCredit"></strong>
         </div>
-        <div class="field">
-          <label>Durée / séance (h)</label>
-          <input type="number" id="dureeSeance" value="1" min="0.5" step="0.5" oninput="calculer()" />
+        <div class="progress-bar-wrap" id="progressWrap">
+          <div class="progress-bar" id="progressBar" style="width:0%"></div>
         </div>
+        <button class="btn-generate" id="btnBatch" onclick="genererBatch()">⬇ Tout générer (ZIP)</button>
       </div>
-      <div class="row-3" style="margin-top:10px">
-        <div class="field">
-          <label>Total heures</label>
-          <input class="computed" id="totalH" readonly placeholder="—" />
-        </div>
-        <div class="field">
-          <label>Taux horaire</label>
-          <input class="computed" id="tauxH" readonly placeholder="—" />
-        </div>
-        <div class="field">
-          <label>Crédit d'impôt (50%)</label>
-          <input class="computed" id="creditImpot" readonly placeholder="—" />
-        </div>
-      </div>
-      <button class="btn-generate" id="btnGen" onclick="genererPDF()">
-        ⬇ Télécharger l'attestation PDF
-      </button>
-      <span class="shortcut">Raccourci clavier : Ctrl + Entrée</span>
+
     </div>
   </div>
 
 </div>
 
-<!-- Modal mapping colonnes -->
+<!-- ── Modal mapping colonnes ── -->
 <div class="modal-bg hidden" id="modalBg">
   <div class="modal">
     <h2>Associer les colonnes</h2>
@@ -202,36 +346,67 @@
   </div>
 </div>
 
+<!-- ── Modal client (ajout / édition) ── -->
+<div class="modal-bg hidden" id="clientModalBg">
+  <div class="modal">
+    <h2 id="clientModalTitle">Ajouter un client</h2>
+    <div class="grid grid-2" style="margin-top:16px">
+      <div class="field"><label>Prénom</label><input id="cm_prenom" placeholder="Marie" /></div>
+      <div class="field"><label>Nom</label><input id="cm_nom" placeholder="Martin" /></div>
+      <div class="field span-2"><label>Adresse</label><input id="cm_adresse" placeholder="8 avenue Victor Hugo, 69001 Lyon" /></div>
+      <div class="field span-2"><label>Email</label><input id="cm_email" type="email" placeholder="marie.martin@email.com" /></div>
+    </div>
+    <div id="clientModalError" class="error-msg hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeClientModal()">Annuler</button>
+      <button class="btn-primary" onclick="saveClientModal()">Sauvegarder</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+// ─── Storage keys ─────────────────────────────────────────────────────────────
 const SK_COACH   = 'sap_coach';
 const SK_CLIENTS = 'sap_clients';
 
+// ─── Column detection patterns ────────────────────────────────────────────────
 const PATTERNS = {
-  prenom:  ['prenom','prénom','firstname','first_name','first name','given','givenname','forename'],
+  prenom:  ['prenom','prénom','firstname','first_name','first name','given','givenname'],
   nom:     ['nom','lastname','last_name','last name','surname','family','familyname','nom de famille'],
   adresse: ['adresse','address','domicile','adresse complete','adresse postale','rue','street'],
   email:   ['email','mail','courriel','e-mail','adresse email'],
 };
 
-let clients    = [];
-let rawHeaders = [];
-let rawRows    = [];
+// ─── State ────────────────────────────────────────────────────────────────────
+let clients      = [];
+let rawHeaders   = [];
+let rawRows      = [];
+let editingIdx   = null;
+let logoData     = null;
+let signatureData = null;
 
+// ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCoach();
   loadClients();
+  loadImages();
   document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') genererPDF();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      const active = document.querySelector('.tab-panel.active');
+      if (active && active.id === 'panelBatch') genererBatch();
+      else genererPDF();
+    }
   });
 });
 
-// ── Coach ──────────────────────────────────────────────────────────────────
+// ─── Coach ────────────────────────────────────────────────────────────────────
 function saveCoach() {
   localStorage.setItem(SK_COACH, JSON.stringify({
-    prenom: v('cPrenom'), nom: v('cNom'),
-    adresse: v('cAdresse'), agrement: v('cAgrement'), annee: v('cAnnee'),
+    prenom: v('cPrenom'), nom: v('cNom'), adresse: v('cAdresse'),
+    agrement: v('cAgrement'), annee: v('cAnnee'),
+    prestation: v('cPrestation'),
   }));
   updateCoachStatus();
 }
@@ -239,11 +414,12 @@ function saveCoach() {
 function loadCoach() {
   try {
     const d = JSON.parse(localStorage.getItem(SK_COACH) || '{}');
-    if (d.prenom)   set('cPrenom',   d.prenom);
-    if (d.nom)      set('cNom',      d.nom);
-    if (d.adresse)  set('cAdresse',  d.adresse);
-    if (d.agrement) set('cAgrement', d.agrement);
-    if (d.annee)    document.getElementById('cAnnee').value = d.annee;
+    if (d.prenom)     set('cPrenom',     d.prenom);
+    if (d.nom)        set('cNom',        d.nom);
+    if (d.adresse)    set('cAdresse',    d.adresse);
+    if (d.agrement)   set('cAgrement',   d.agrement);
+    if (d.annee)      document.getElementById('cAnnee').value = d.annee;
+    if (d.prestation) set('cPrestation', d.prestation);
     updateCoachStatus(true);
   } catch {}
 }
@@ -256,21 +432,71 @@ function updateCoachStatus(autoCollapse = false) {
   if (ok && autoCollapse) collapseCard('Coach');
 }
 
-// ── Card toggle ────────────────────────────────────────────────────────────
+// ─── Images (logo + signature) ────────────────────────────────────────────────
+function loadImage(type, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = e.target.result;
+    if (type === 'logo') {
+      logoData = data;
+      localStorage.setItem('sap_logo', data);
+    } else {
+      signatureData = data;
+      localStorage.setItem('sap_signature', data);
+    }
+    showImagePreview(type, data);
+    saveCoach();
+  };
+  reader.readAsDataURL(file);
+}
+
+function showImagePreview(type, data) {
+  const preview = document.getElementById(type + 'Preview');
+  const clear   = document.getElementById(type + 'Clear');
+  preview.src   = data;
+  preview.classList.remove('hidden');
+  clear.classList.remove('hidden');
+}
+
+function clearImage(type) {
+  if (type === 'logo')      { logoData = null;      localStorage.removeItem('sap_logo'); }
+  else                      { signatureData = null; localStorage.removeItem('sap_signature'); }
+  document.getElementById(type + 'Preview').classList.add('hidden');
+  document.getElementById(type + 'Clear').classList.add('hidden');
+}
+
+function loadImages() {
+  const logo = localStorage.getItem('sap_logo');
+  const sig  = localStorage.getItem('sap_signature');
+  if (logo) { logoData = logo;         showImagePreview('logo',      logo); }
+  if (sig)  { signatureData = sig;     showImagePreview('signature', sig);  }
+}
+
+// ─── Card toggle ──────────────────────────────────────────────────────────────
 function toggleCard(name) {
   const body   = document.getElementById('body' + name);
   const toggle = document.getElementById('toggle' + name);
-  const isHidden = body.classList.contains('hidden');
-  body.classList.toggle('hidden', !isHidden);
-  toggle.textContent = isHidden ? 'Réduire' : 'Modifier';
+  const hidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !hidden);
+  toggle.textContent = hidden ? 'Réduire' : (name === 'Import' ? 'Gérer' : 'Modifier');
 }
 
 function collapseCard(name) {
   document.getElementById('body' + name).classList.add('hidden');
-  document.getElementById('toggle' + name).textContent = 'Modifier';
+  document.getElementById('toggle' + name).textContent = name === 'Import' ? 'Gérer' : 'Modifier';
 }
 
-// ── File import ────────────────────────────────────────────────────────────
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el,i) => el.classList.toggle('active', (tab === 'individual' ? i===0 : i===1)));
+  document.getElementById('panelIndividual').classList.toggle('active', tab === 'individual');
+  document.getElementById('panelBatch').classList.toggle('active', tab === 'batch');
+  if (tab === 'batch') refreshBatchTable();
+}
+
+// ─── File import ──────────────────────────────────────────────────────────────
 function onDragOver(e)  { e.preventDefault(); document.getElementById('dropZone').classList.add('drag'); }
 function onDragLeave()  { document.getElementById('dropZone').classList.remove('drag'); }
 function onDrop(e)      { e.preventDefault(); onDragLeave(); handleFile(e.dataTransfer.files[0]); }
@@ -279,301 +505,431 @@ function handleFile(file) {
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'csv') {
-    const reader = new FileReader();
-    reader.onload = e => parseCSV(e.target.result);
-    reader.readAsText(file, 'UTF-8');
+    new FileReader().onload = e => parseCSV(e.target.result),
+    (() => { const r = new FileReader(); r.onload = e => parseCSV(e.target.result); r.readAsText(file, 'UTF-8'); })();
   } else if (['xlsx','xls'].includes(ext)) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const wb  = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
-      const ws  = wb.Sheets[wb.SheetNames[0]];
-      parseCSV(XLSX.utils.sheet_to_csv(ws));
+    const r = new FileReader();
+    r.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      parseCSV(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]));
     };
-    reader.readAsArrayBuffer(file);
-  } else {
-    toast('Format non supporté. Utilisez CSV ou Excel.', true);
-  }
+    r.readAsArrayBuffer(file);
+  } else { toast('Format non supporté. Utilisez CSV ou Excel.', true); }
 }
 
 function parseCSV(csv) {
-  const lines = csv.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = csv.trim().split('\n').map(l=>l.trim()).filter(Boolean);
   if (lines.length < 2) { toast('Fichier vide ou invalide.', true); return; }
-
-  const sep = [',',';','\t'].reduce((best, c) =>
-    (lines[0].split(c).length > lines[0].split(best).length ? c : best), ',');
-
+  const sep = [',',';','\t'].reduce((b,c) => (lines[0].split(c).length > lines[0].split(b).length ? c : b), ',');
   rawHeaders = splitLine(lines[0], sep);
   rawRows    = lines.slice(1).map(l => splitLine(l, sep));
-
   const mapping = autoDetect(rawHeaders);
-  if (mapping.prenom !== -1 && mapping.nom !== -1) {
-    applyMapping(mapping);
-  } else {
-    showMappingModal(mapping);
-  }
+  (mapping.prenom !== -1 && mapping.nom !== -1) ? applyMapping(mapping) : showMappingModal(mapping);
 }
 
 function splitLine(line, sep) {
-  const res = []; let cur = ''; let inQ = false;
+  const res=[]; let cur=''; let inQ=false;
   for (const c of line) {
-    if (c === '"') { inQ = !inQ; continue; }
-    if (c === sep && !inQ) { res.push(cur.trim()); cur = ''; continue; }
-    cur += c;
+    if (c==='"') { inQ=!inQ; continue; }
+    if (c===sep && !inQ) { res.push(cur.trim()); cur=''; continue; }
+    cur+=c;
   }
-  res.push(cur.trim());
-  return res;
+  res.push(cur.trim()); return res;
 }
 
 function norm(s) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[\s_\-()']/g,'');
 }
-
 function autoDetect(headers) {
   const hn = headers.map(norm);
-  const find = pats => {
-    for (const p of pats) {
-      const np = norm(p);
-      const i = hn.findIndex(h => h === np || h.includes(np) || np.includes(h));
-      if (i !== -1) return i;
-    }
-    return -1;
-  };
-  return { prenom: find(PATTERNS.prenom), nom: find(PATTERNS.nom), adresse: find(PATTERNS.adresse), email: find(PATTERNS.email) };
+  const find = pats => { for (const p of pats) { const np=norm(p); const i=hn.findIndex(h=>h===np||h.includes(np)||np.includes(h)); if(i!==-1) return i; } return -1; };
+  return { prenom:find(PATTERNS.prenom), nom:find(PATTERNS.nom), adresse:find(PATTERNS.adresse), email:find(PATTERNS.email) };
 }
 
 function applyMapping(mapping) {
-  clients = rawRows.map(row => ({
-    prenom:  mapping.prenom  >= 0 ? (row[mapping.prenom]  || '').trim() : '',
-    nom:     mapping.nom     >= 0 ? (row[mapping.nom]     || '').trim() : '',
-    adresse: mapping.adresse >= 0 ? (row[mapping.adresse] || '').trim() : '',
-    email:   mapping.email   >= 0 ? (row[mapping.email]   || '').trim() : '',
+  const imported = rawRows.map(row => ({
+    prenom:  mapping.prenom  >= 0 ? (row[mapping.prenom]  ||'').trim() : '',
+    nom:     mapping.nom     >= 0 ? (row[mapping.nom]     ||'').trim() : '',
+    adresse: mapping.adresse >= 0 ? (row[mapping.adresse] ||'').trim() : '',
+    email:   mapping.email   >= 0 ? (row[mapping.email]   ||'').trim() : '',
   })).filter(c => c.prenom || c.nom);
-  clients.sort((a,b) => (a.nom+a.prenom).localeCompare(b.nom+b.prenom, 'fr'));
-  localStorage.setItem(SK_CLIENTS, JSON.stringify(clients));
-  refreshClientSelect();
+  clients = mergeClients(clients, imported);
+  saveAndRefresh();
   collapseCard('Import');
-  toast(`${clients.length} clients importés ✓`);
+  toast(`${imported.length} clients importés ✓`);
+}
+
+function mergeClients(existing, incoming) {
+  const all = [...existing];
+  incoming.forEach(nc => {
+    const exists = all.some(c => norm(c.nom+c.prenom) === norm(nc.nom+nc.prenom));
+    if (!exists) all.push(nc);
+  });
+  return all.sort((a,b) => (a.nom+a.prenom).localeCompare(b.nom+b.prenom, 'fr'));
 }
 
 function loadClients() {
-  try {
-    const saved = localStorage.getItem(SK_CLIENTS);
-    if (saved) { clients = JSON.parse(saved); refreshClientSelect(); }
-  } catch {}
+  try { const s = localStorage.getItem(SK_CLIENTS); if (s) { clients = JSON.parse(s); refreshAll(); } } catch {}
+}
+
+function saveAndRefresh() {
+  localStorage.setItem(SK_CLIENTS, JSON.stringify(clients));
+  refreshAll();
+}
+
+function refreshAll() {
+  refreshClientSelect();
+  refreshClientList();
+  refreshBatchTable();
 }
 
 function refreshClientSelect() {
   const sel = document.getElementById('clientSelect');
+  const cur = sel.value;
   sel.innerHTML = '<option value="">— Sélectionner un client —</option>';
-  clients.forEach((c, i) => {
+  clients.forEach((c,i) => {
     const o = document.createElement('option');
-    o.value = i;
-    o.textContent = [c.nom, c.prenom].filter(Boolean).join(' ');
+    o.value = i; o.textContent = [c.nom, c.prenom].filter(Boolean).join(' ');
     sel.appendChild(o);
   });
-  const countEl  = document.getElementById('clientCount');
-  const countTxt = document.getElementById('clientCountText');
-  countEl.classList.remove('hidden');
-  countTxt.textContent = `${clients.length} clients chargés`;
-  const st = document.getElementById('statusImport');
-  st.textContent = `${clients.length} clients`;
-  st.className = 'card-status';
+  if (cur !== '') sel.value = cur;
+
+  const count = document.getElementById('clientCount');
+  const txt   = document.getElementById('clientCountText');
+  const st    = document.getElementById('statusImport');
+  if (clients.length > 0) {
+    count.classList.remove('hidden');
+    txt.textContent = `${clients.length} client${clients.length>1?'s':''} chargé${clients.length>1?'s':''}`;
+    st.textContent  = `${clients.length} clients`;
+    st.className    = 'card-status';
+  } else {
+    count.classList.add('hidden');
+    st.textContent = 'Aucun client';
+    st.className   = 'card-status warn';
+  }
 }
 
-// ── Mapping modal ──────────────────────────────────────────────────────────
+function refreshClientList() {
+  const list = document.getElementById('clientList');
+  if (clients.length === 0) { list.classList.add('hidden'); return; }
+  list.classList.remove('hidden');
+  list.innerHTML = clients.map((c,i) => `
+    <div class="client-row">
+      <span class="client-row-name">${[c.nom, c.prenom].filter(Boolean).join(' ')}</span>
+      <span class="client-row-email">${c.email || ''}</span>
+      <button onclick="showClientModal(${i})" title="Modifier">✎</button>
+      <button class="del-btn" onclick="deleteClient(${i})" title="Supprimer">✕</button>
+    </div>`).join('');
+}
+
+// ─── Mapping modal ────────────────────────────────────────────────────────────
 function showMappingModal(detected) {
-  const defs = [
-    {key:'prenom',  label:'Prénom',  req:true},
-    {key:'nom',     label:'Nom',     req:true},
-    {key:'adresse', label:'Adresse', req:false},
-    {key:'email',   label:'Email',   req:false},
-  ];
-  const container = document.getElementById('mappingFields');
-  container.innerHTML = '';
+  const defs = [{key:'prenom',label:'Prénom',req:true},{key:'nom',label:'Nom',req:true},{key:'adresse',label:'Adresse',req:false},{key:'email',label:'Email',req:false}];
+  const c = document.getElementById('mappingFields');
+  c.innerHTML = '';
   defs.forEach(f => {
-    const wrap = document.createElement('div');
-    wrap.className = 'field';
-    const lbl = document.createElement('label');
-    lbl.innerHTML = f.label + (f.req ? ' <span class="req">*</span>' : '');
-    const sel = document.createElement('select');
-    sel.id = 'map_' + f.key;
-    const opt0 = document.createElement('option');
-    opt0.value = -1; opt0.textContent = '— Ignorer —';
-    sel.appendChild(opt0);
-    rawHeaders.forEach((h,i) => {
-      const o = document.createElement('option');
-      o.value = i; o.textContent = h;
-      if (detected[f.key] === i) o.selected = true;
-      sel.appendChild(o);
-    });
-    wrap.appendChild(lbl); wrap.appendChild(sel);
-    container.appendChild(wrap);
+    const w = document.createElement('div'); w.className='field';
+    const l = document.createElement('label'); l.innerHTML=f.label+(f.req?' <span class="req">*</span>':'');
+    const s = document.createElement('select'); s.id='map_'+f.key;
+    const o0=document.createElement('option'); o0.value=-1; o0.textContent='— Ignorer —'; s.appendChild(o0);
+    rawHeaders.forEach((h,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=h; if(detected[f.key]===i) o.selected=true; s.appendChild(o); });
+    w.appendChild(l); w.appendChild(s); c.appendChild(w);
   });
   document.getElementById('modalBg').classList.remove('hidden');
 }
-
 function closeModal() { document.getElementById('modalBg').classList.add('hidden'); }
-
 function confirmMapping() {
-  const mapping = {};
-  ['prenom','nom','adresse','email'].forEach(k => {
-    mapping[k] = parseInt(document.getElementById('map_' + k).value);
-  });
-  if (mapping.prenom < 0 && mapping.nom < 0) {
-    const err = document.getElementById('mappingError');
-    err.textContent = 'Associez au moins le Prénom ou le Nom.';
-    err.classList.remove('hidden');
-    return;
-  }
-  closeModal();
-  applyMapping(mapping);
+  const m = {}; ['prenom','nom','adresse','email'].forEach(k => m[k]=parseInt(document.getElementById('map_'+k).value));
+  if (m.prenom<0 && m.nom<0) { const e=document.getElementById('mappingError'); e.textContent='Associez au moins Prénom ou Nom.'; e.classList.remove('hidden'); return; }
+  closeModal(); applyMapping(m);
 }
 
-// ── Client selection ───────────────────────────────────────────────────────
+// ─── Client modal (add / edit) ────────────────────────────────────────────────
+function showClientModal(idx) {
+  editingIdx = idx;
+  document.getElementById('clientModalTitle').textContent = idx===null ? 'Ajouter un client' : 'Modifier le client';
+  document.getElementById('clientModalError').classList.add('hidden');
+  const c = idx!==null ? clients[idx] : {prenom:'',nom:'',adresse:'',email:''};
+  set('cm_prenom', c.prenom); set('cm_nom', c.nom); set('cm_adresse', c.adresse); set('cm_email', c.email);
+  document.getElementById('clientModalBg').classList.remove('hidden');
+  setTimeout(() => document.getElementById('cm_prenom').focus(), 50);
+}
+function closeClientModal() { document.getElementById('clientModalBg').classList.add('hidden'); editingIdx=null; }
+function saveClientModal() {
+  const prenom=v('cm_prenom'), nom=v('cm_nom');
+  if (!prenom && !nom) {
+    const e=document.getElementById('clientModalError'); e.textContent='Entrez au moins un prénom ou un nom.'; e.classList.remove('hidden'); return;
+  }
+  const client = { prenom, nom, adresse:v('cm_adresse'), email:v('cm_email') };
+  if (editingIdx!==null) { clients[editingIdx]=client; }
+  else { clients.push(client); clients.sort((a,b)=>(a.nom+a.prenom).localeCompare(b.nom+b.prenom,'fr')); }
+  saveAndRefresh();
+  closeClientModal();
+  toast(editingIdx!==null ? 'Client modifié ✓' : 'Client ajouté ✓');
+}
+function deleteClient(idx) {
+  if (!confirm(`Supprimer ${clients[idx].prenom} ${clients[idx].nom} ?`)) return;
+  clients.splice(idx,1);
+  saveAndRefresh();
+  toast('Client supprimé');
+}
+
+// ─── Individual selection ─────────────────────────────────────────────────────
 function onClientSelect() {
   const idx = document.getElementById('clientSelect').value;
   const adresseField = document.getElementById('fieldAdresse');
-  if (idx === '') { adresseField.style.display = 'none'; return; }
-  const c = clients[parseInt(idx)];
-  set('clientAdresse', c.adresse);
-  adresseField.style.display = '';
+  if (idx==='') { adresseField.style.display='none'; return; }
+  set('clientAdresse', clients[parseInt(idx)].adresse);
+  adresseField.style.display='';
   document.getElementById('montant').focus();
 }
 
-// ── Calculations ───────────────────────────────────────────────────────────
 function calculer() {
-  const m  = parseFloat(document.getElementById('montant').value)    || 0;
-  const nb = parseFloat(document.getElementById('nbSeances').value)  || 0;
-  const d  = parseFloat(document.getElementById('dureeSeance').value)|| 1;
-  const h  = nb * d;
-  set('totalH',     h > 0 ? h.toFixed(1) + ' h'      : '');
-  set('tauxH',      h > 0 ? (m/h).toFixed(2) + ' €/h': '');
-  set('creditImpot',m > 0 ? (m*.5).toFixed(2) + ' €' : '');
+  const m=parseFloat(document.getElementById('montant').value)||0;
+  const nb=parseFloat(document.getElementById('nbSeances').value)||0;
+  const d=parseFloat(document.getElementById('dureeSeance').value)||1;
+  const h=nb*d;
+  set('totalH',     h>0 ? h.toFixed(1)+' h'       : '');
+  set('tauxH',      h>0 ? (m/h).toFixed(2)+' €/h' : '');
+  set('creditImpot',m>0 ? (m*.5).toFixed(2)+' €'  : '');
 }
 
-// ── PDF ────────────────────────────────────────────────────────────────────
-function genererPDF() {
-  const coach = { prenom:v('cPrenom'), nom:v('cNom'), adresse:v('cAdresse'), agrement:v('cAgrement'), annee:v('cAnnee') };
-  if (!coach.prenom||!coach.nom||!coach.adresse||!coach.agrement) {
+// ─── Batch table ──────────────────────────────────────────────────────────────
+function refreshBatchTable() {
+  const tbody  = document.getElementById('batchBody');
+  const hint   = document.getElementById('batchHint');
+  const summary= document.getElementById('batchSummary');
+  if (clients.length === 0) {
+    tbody.innerHTML=''; hint.style.display='';
+    summary.classList.add('hidden'); return;
+  }
+  hint.style.display='none';
+  tbody.innerHTML = clients.map((c,i) => `
+    <tr id="brow_${i}">
+      <td style="white-space:nowrap;font-weight:500">${[c.nom, c.prenom].filter(Boolean).join(' ')}</td>
+      <td><input type="number" placeholder="—" min="0" step="0.01" oninput="batchCalc(${i})" id="bm_${i}" /></td>
+      <td><input type="number" placeholder="—" min="1" oninput="batchCalc(${i})" id="bs_${i}" /></td>
+      <td><input type="number" value="1" min="0.5" step="0.5" oninput="batchCalc(${i})" id="bd_${i}" /></td>
+      <td><input readonly id="bh_${i}" placeholder="—" /></td>
+      <td><input readonly id="bc_${i}" placeholder="—" style="color:var(--green);font-weight:600" /></td>
+    </tr>`).join('');
+  summary.classList.remove('hidden');
+  updateBatchSummary();
+}
+
+function batchCalc(i) {
+  const m  = parseFloat(document.getElementById('bm_'+i).value)||0;
+  const nb = parseFloat(document.getElementById('bs_'+i).value)||0;
+  const d  = parseFloat(document.getElementById('bd_'+i).value)||1;
+  const h  = nb*d;
+  document.getElementById('bh_'+i).value = h>0  ? h.toFixed(1)+' h'      : '';
+  document.getElementById('bc_'+i).value = m>0  ? (m*.5).toFixed(2)+' €' : '';
+  updateBatchSummary();
+}
+
+function updateBatchSummary() {
+  let total=0, count=0;
+  clients.forEach((_,i) => {
+    const m = parseFloat(document.getElementById('bm_'+i)?.value)||0;
+    if (m>0) { total+=m*.5; count++; }
+  });
+  document.getElementById('batchCount').textContent = count;
+  document.getElementById('batchTotalCredit').textContent = total>0 ? `Crédit total estimé : ${total.toFixed(2)} €` : '';
+}
+
+// ─── PDF builder (shared) ─────────────────────────────────────────────────────
+function getCoach() {
+  return { prenom:v('cPrenom'), nom:v('cNom'), adresse:v('cAdresse'), agrement:v('cAgrement'), annee:v('cAnnee'), prestation:v('cPrestation')||'Coaching sportif à domicile' };
+}
+
+function validateCoach() {
+  const c = getCoach();
+  if (!c.prenom||!c.nom||!c.adresse||!c.agrement) {
     toast('Complétez vos informations coach d\'abord.', true);
     document.getElementById('bodyCoach').classList.remove('hidden');
-    return;
+    return null;
   }
-  const idx = document.getElementById('clientSelect').value;
-  if (idx === '') { toast('Sélectionnez un client.', true); return; }
-  const c = clients[parseInt(idx)];
-  const montant = parseFloat(document.getElementById('montant').value);
-  const nb      = parseFloat(document.getElementById('nbSeances').value);
-  if (!montant||montant<=0) { toast('Entrez le montant annuel.', true); document.getElementById('montant').focus(); return; }
-  if (!nb||nb<=0)           { toast('Entrez le nombre de séances.', true); document.getElementById('nbSeances').focus(); return; }
+  return c;
+}
 
-  const duree  = parseFloat(document.getElementById('dureeSeance').value)||1;
+async function buildPDF(coach, client, montant, nb, duree) {
   const totalH = nb*duree;
   const taux   = (montant/totalH).toFixed(2);
   const credit = (montant*.5).toFixed(2);
   const today  = new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
-  const clientNomComplet = [c.prenom, c.nom].filter(Boolean).join(' ');
-  const clientAdresse = v('clientAdresse') || 'Non renseignée';
+  const clientNom = [client.prenom, client.nom].filter(Boolean).join(' ');
+  const adresse   = client.adresse || 'Non renseignée';
 
-  const btn = document.getElementById('btnGen');
-  btn.disabled = true; btn.textContent = 'Génération…';
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({format:'a4',unit:'mm'});
+  const M=25, W=210, CW=W-M*2;
+  let y=25;
+  const t=(s,x,yy,o={})=>doc.text(s,x,yy,o);
+  const ln=(x1,y1,x2,y2,c=[210,210,210])=>{doc.setDrawColor(...c);doc.line(x1,y1,x2,y2);};
 
-  try {
-    const {jsPDF} = window.jspdf;
-    const doc = new jsPDF({format:'a4',unit:'mm'});
-    const M=25, W=210, CW=W-M*2;
-    let y=25;
-    const t=(s,x,yy,o={})=>doc.text(s,x,yy,o);
-    const ln=(x1,y1,x2,y2,c=[210,210,210])=>{doc.setDrawColor(...c);doc.line(x1,y1,x2,y2);};
-
+  // Logo (si disponible)
+  if (logoData) {
+    try { doc.addImage(logoData,'PNG',M,8,40,18,'logo','FAST'); } catch {}
+    doc.setFillColor(26,26,26); doc.rect(0,30,210,18,'F');
+    y = 32;
+  } else {
     doc.setFillColor(26,26,26); doc.rect(0,0,210,40,'F');
-    doc.setTextColor(255,255,255);
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); t('ATTESTATION FISCALE',M,19);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10);
-    t('Service à la Personne · Crédit d\'impôt 50%',M,28);
-    t(`Année ${coach.annee}`,W-M,28,{align:'right'});
+    y = 19;
+  }
 
-    y=54; doc.setTextColor(26,26,26);
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(logoData?13:18);
+  t('ATTESTATION FISCALE', logoData?M:M, logoData?39:19);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  t('Service à la Personne · Crédit d\'impôt 50%', M, logoData?44:28);
+  t(`Année ${coach.annee}`, W-M, logoData?44:28, {align:'right'});
 
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(150,150,150); t('PRESTATAIRE',M,y); y+=6;
-    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26); t(`${coach.prenom} ${coach.nom}`,M,y); y+=5;
-    doc.setFontSize(9.5); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
-    t(coach.adresse,M,y); y+=5; t(`N° d'agrément SAP : ${coach.agrement}`,M,y);
+  y = logoData ? 58 : 54;
+  doc.setTextColor(26,26,26);
 
-    y+=13; ln(M,y,W-M,y); y+=10;
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(150,150,150); t('BÉNÉFICIAIRE',M,y); y+=6;
-    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26); t(clientNomComplet,M,y); y+=5;
-    doc.setFontSize(9.5); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80); t(clientAdresse,M,y);
+  // Prestataire
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(150,150,150); t('PRESTATAIRE',M,y); y+=6;
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(26,26,26); t(`${coach.prenom} ${coach.nom}`,M,y); y+=5;
+  doc.setFontSize(9.5);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
+  t(coach.adresse,M,y); y+=5; t(`N° d'agrément SAP : ${coach.agrement}`,M,y);
 
-    y+=14; ln(M,y,W-M,y); y+=12;
-    doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(40,40,40);
-    const intro = `Je soussigné(e) ${coach.prenom} ${coach.nom}, prestataire de services à la personne agréé(e) sous le numéro ${coach.agrement}, atteste avoir accompli au domicile de ${clientNomComplet} les prestations suivantes au titre de l'année ${coach.annee} :`;
-    const il = doc.splitTextToSize(intro, CW); doc.text(il,M,y); y+=il.length*5.5+8;
+  y+=13; ln(M,y,W-M,y); y+=10;
 
-    const rows=[
-      ['Nature de la prestation','Coaching sportif à domicile'],
-      ['Montant total des dépenses',`${montant.toFixed(2)} €`],
-      ['Nombre de séances',`${nb}`],
-      ['Durée par séance',`${duree} h`],
-      ['Nombre total d\'heures',`${totalH.toFixed(1)} h`],
-      ['Taux horaire',`${taux} €/h`],
-    ];
-    rows.forEach((row,i)=>{
-      const ry=y+i*9;
-      if(i%2===0){doc.setFillColor(248,248,245);doc.rect(M,ry-5.5,CW,9,'F');}
-      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(100,100,100);t(row[0],M+3,ry);
-      doc.setFont('helvetica','bold');doc.setTextColor(26,26,26);t(row[1],M+94,ry);
-    });
-    y+=rows.length*9+10;
+  // Bénéficiaire
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(150,150,150); t('BÉNÉFICIAIRE',M,y); y+=6;
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(26,26,26); t(clientNom,M,y); y+=5;
+  doc.setFontSize(9.5);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80); t(adresse,M,y);
 
-    doc.setFillColor(237,247,237);doc.setDrawColor(184,221,184);doc.roundedRect(M,y,CW,16,3,3,'FD');
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(45,106,45);
-    t(`Crédit d'impôt estimé (50%) : ${credit} €`,W/2,y+10,{align:'center'});
+  y+=14; ln(M,y,W-M,y); y+=12;
 
-    y+=26;
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(140,140,140);
-    const legal=`Cette attestation est établie conformément à l'article L.7233-1 du Code du travail et à l'article 199 sexdecies du Code général des impôts. Elle doit être conservée et peut être réclamée par l'administration fiscale.`;
-    const ll=doc.splitTextToSize(legal,CW);doc.text(ll,M,y);y+=ll.length*4.5+16;
+  doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(40,40,40);
+  const intro=`Je soussigné(e) ${coach.prenom} ${coach.nom}, prestataire de services à la personne agréé(e) sous le numéro ${coach.agrement}, atteste avoir accompli au domicile de ${clientNom} les prestations suivantes au titre de l'année ${coach.annee} :`;
+  const il=doc.splitTextToSize(intro,CW); doc.text(il,M,y); y+=il.length*5.5+8;
 
-    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(80,80,80);
-    t(`Fait à __________________, le ${today}`,M,y);y+=16;
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(26,26,26);
-    t('Signature du prestataire :',M,y);ln(M,y+18,M+80,y+18,[180,180,180]);
+  const rows=[
+    ['Nature de la prestation', coach.prestation],
+    ['Montant total des dépenses',`${montant.toFixed(2)} €`],
+    ['Nombre de séances',`${nb}`],
+    ['Durée par séance',`${duree} h`],
+    ["Nombre total d'heures",`${totalH.toFixed(1)} h`],
+    ['Taux horaire',`${taux} €/h`],
+  ];
+  rows.forEach((row,i)=>{
+    const ry=y+i*9;
+    if(i%2===0){doc.setFillColor(248,248,245);doc.rect(M,ry-5.5,CW,9,'F');}
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(100,100,100);t(row[0],M+3,ry);
+    doc.setFont('helvetica','bold');doc.setTextColor(26,26,26);t(row[1],M+94,ry);
+  });
+  y+=rows.length*9+10;
 
-    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(200,200,200);
-    t(`Document généré le ${today} · Attestation Fiscale SAP ${coach.annee}`,W/2,288,{align:'center'});
+  doc.setFillColor(237,247,237);doc.setDrawColor(184,221,184);doc.roundedRect(M,y,CW,16,3,3,'FD');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(45,106,45);
+  t(`Crédit d'impôt estimé (50%) : ${credit} €`,W/2,y+10,{align:'center'});
 
-    const fname=`attestation_${coach.annee}_${(c.nom||'client').toLowerCase().replace(/\s+/g,'_')}.pdf`;
-    doc.save(fname);
+  y+=26;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(140,140,140);
+  const legal=`Cette attestation est établie conformément à l'article L.7233-1 du Code du travail et à l'article 199 sexdecies du Code général des impôts. Elle doit être conservée et peut être réclamée par l'administration fiscale.`;
+  const ll=doc.splitTextToSize(legal,CW); doc.text(ll,M,y); y+=ll.length*4.5+16;
 
-    // Reset for next client
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(80,80,80);
+  t(`Fait à __________________, le ${today}`,M,y); y+=8;
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(26,26,26);
+  t('Signature du prestataire :',M,y+6);
+
+  // Signature image (si disponible)
+  if (signatureData) {
+    try { doc.addImage(signatureData,'PNG',M,y+8,50,20,'sig','FAST'); } catch {}
+  } else {
+    ln(M,y+26,M+80,y+26,[180,180,180]);
+  }
+
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(200,200,200);
+  t(`Document généré le ${today} · Attestation Fiscale SAP ${coach.annee}`,W/2,288,{align:'center'});
+
+  return doc;
+}
+
+// ─── Individual PDF ───────────────────────────────────────────────────────────
+async function genererPDF() {
+  const coach = validateCoach(); if (!coach) return;
+  const idx = document.getElementById('clientSelect').value;
+  if (idx==='') { toast('Sélectionnez un client.', true); return; }
+  const c = clients[parseInt(idx)];
+  c.adresse = v('clientAdresse') || c.adresse;
+  const montant=parseFloat(document.getElementById('montant').value);
+  const nb=parseFloat(document.getElementById('nbSeances').value);
+  if (!montant||montant<=0) { toast('Entrez le montant annuel.', true); return; }
+  if (!nb||nb<=0)           { toast('Entrez le nombre de séances.', true); return; }
+  const duree=parseFloat(document.getElementById('dureeSeance').value)||1;
+
+  const btn=document.getElementById('btnGen');
+  btn.disabled=true; btn.textContent='Génération…';
+  try {
+    const doc = await buildPDF(coach, c, montant, nb, duree);
+    doc.save(`attestation_${coach.annee}_${(c.nom||'client').toLowerCase().replace(/\s+/g,'_')}.pdf`);
     document.getElementById('clientSelect').value='';
     document.getElementById('fieldAdresse').style.display='none';
     ['clientAdresse','montant','nbSeances','totalH','tauxH','creditImpot'].forEach(id=>set(id,''));
     document.getElementById('dureeSeance').value='1';
     toast('PDF téléchargé ✓ — prêt pour le prochain client');
     document.getElementById('clientSelect').focus();
+  } catch(e) { console.error(e); toast('Erreur lors de la génération.', true); }
+  finally { btn.disabled=false; btn.textContent='⬇ Télécharger l\'attestation PDF'; }
+}
 
-  } catch(e) {
-    console.error(e);
-    toast('Erreur lors de la génération.', true);
-  } finally {
-    btn.disabled=false;
-    btn.textContent='⬇ Télécharger l\'attestation PDF';
+// ─── Batch PDF ────────────────────────────────────────────────────────────────
+async function genererBatch() {
+  const coach = validateCoach(); if (!coach) return;
+
+  const todo = clients.map((c,i) => {
+    const m  = parseFloat(document.getElementById('bm_'+i)?.value)||0;
+    const nb = parseFloat(document.getElementById('bs_'+i)?.value)||0;
+    const d  = parseFloat(document.getElementById('bd_'+i)?.value)||1;
+    return m>0 && nb>0 ? {c, m, nb, d} : null;
+  }).filter(Boolean);
+
+  if (todo.length===0) { toast('Entrez au moins un montant dans le tableau.', true); return; }
+
+  const btn=document.getElementById('btnBatch');
+  btn.disabled=true; btn.textContent=`Génération de ${todo.length} PDF…`;
+  const wrap=document.getElementById('progressWrap');
+  const bar =document.getElementById('progressBar');
+  wrap.style.display='block'; bar.style.width='0%';
+
+  try {
+    const zip = new JSZip();
+    for (let i=0; i<todo.length; i++) {
+      const {c, m, nb, d} = todo[i];
+      const doc  = await buildPDF(coach, c, m, nb, d);
+      const blob = doc.output('blob');
+      const name = `attestation_${coach.annee}_${(c.nom||'client').toLowerCase().replace(/\s+/g,'_')}.pdf`;
+      zip.file(name, blob);
+      bar.style.width = Math.round((i+1)/todo.length*100)+'%';
+    }
+    const zipBlob = await zip.generateAsync({type:'blob'});
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href=url; a.download=`attestations_SAP_${coach.annee}.zip`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(`${todo.length} attestations générées ✓`);
+  } catch(e) { console.error(e); toast('Erreur lors de la génération.', true); }
+  finally {
+    btn.disabled=false; btn.textContent='⬇ Tout générer (ZIP)';
+    setTimeout(()=>{ wrap.style.display='none'; bar.style.width='0%'; }, 2000);
   }
 }
 
-function v(id)       { return document.getElementById(id).value.trim(); }
-function set(id,val) { document.getElementById(id).value = val ?? ''; }
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function v(id)      { return document.getElementById(id)?.value.trim() ?? ''; }
+function set(id,val){ const el=document.getElementById(id); if(el) el.value=val??''; }
 
 let toastTimer;
 function toast(msg, err=false) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.style.background = err ? '#c0392b' : '#1a1a1a';
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.background=err?'#c0392b':'#1a1a1a';
+  el.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'), 3500);
 }
 </script>
 </body>
