@@ -768,8 +768,9 @@ async function buildPDF(coach, client, montant, nb, duree) {
   const ln=(x1,y1,x2,y2,c=[210,210,210])=>{doc.setDrawColor(...c);doc.line(x1,y1,x2,y2);};
 
   // Logo (si disponible)
+  const imgFmt = d => d && d.startsWith('data:image/png') ? 'PNG' : 'JPEG';
   if (logoData) {
-    try { doc.addImage(logoData,'PNG',M,8,40,18,'logo','FAST'); } catch {}
+    try { doc.addImage(logoData, imgFmt(logoData), M, 8, 40, 18, 'logo', 'FAST'); } catch(imgErr) { console.warn('Logo error:', imgErr); }
     doc.setFillColor(26,26,26); doc.rect(0,30,210,18,'F');
     y = 32;
   } else {
@@ -807,18 +808,20 @@ async function buildPDF(coach, client, montant, nb, duree) {
   const il=doc.splitTextToSize(intro,CW); doc.text(il,M,y); y+=il.length*5.5+8;
 
   const rows=[
-    ['Nature de la prestation', coach.prestation],
-    ['Montant total des dépenses',`${montant.toFixed(2)} €`],
-    ['Nombre de séances',`${nb}`],
-    ['Durée par séance',`${duree} h`],
-    ["Nombre total d'heures",`${totalH.toFixed(1)} h`],
-    ['Taux horaire',`${taux} €/h`],
+    ['Nature de la prestation', String(coach.prestation || 'Coaching sportif à domicile')],
+    ['Montant total des dépenses', `${montant.toFixed(2)} €`],
+    ['Nombre de séances', String(nb)],
+    ['Durée par séance', `${duree} h`],
+    ["Nombre total d'heures", `${totalH.toFixed(1)} h`],
+    ['Taux horaire', `${taux} €/h`],
   ];
   rows.forEach((row,i)=>{
     const ry=y+i*9;
     if(i%2===0){doc.setFillColor(248,248,245);doc.rect(M,ry-5.5,CW,9,'F');}
-    doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(100,100,100);t(row[0],M+3,ry);
-    doc.setFont('helvetica','bold');doc.setTextColor(26,26,26);t(row[1],M+94,ry);
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(100,100,100);
+    doc.text(String(row[0]),M+3,ry);
+    doc.setFont('helvetica','bold');doc.setTextColor(26,26,26);
+    doc.text(String(row[1]),M+94,ry);
   });
   y+=rows.length*9+10;
 
@@ -838,7 +841,7 @@ async function buildPDF(coach, client, montant, nb, duree) {
 
   // Signature image (si disponible)
   if (signatureData) {
-    try { doc.addImage(signatureData,'PNG',M,y+8,50,20,'sig','FAST'); } catch {}
+    try { doc.addImage(signatureData, imgFmt(signatureData), M, y+8, 50, 20, 'sig', 'FAST'); } catch(imgErr) { console.warn('Sig error:', imgErr); }
   } else {
     ln(M,y+26,M+80,y+26,[180,180,180]);
   }
@@ -873,7 +876,7 @@ async function genererPDF() {
     document.getElementById('dureeSeance').value='1';
     toast('PDF téléchargé ✓ — prêt pour le prochain client');
     document.getElementById('clientSelect').focus();
-  } catch(e) { console.error(e); toast('Erreur lors de la génération.', true); }
+  } catch(e) { console.error(e); toast('Erreur : ' + (e.message || e), true); }
   finally { btn.disabled=false; btn.textContent='⬇ Télécharger l\'attestation PDF'; }
 }
 
