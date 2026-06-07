@@ -3,495 +3,578 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Générateur Attestation Fiscale SAP</title>
+  <title>Attestation Fiscale SAP</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f5f5f0;
-      color: #1a1a1a;
-      min-height: 100vh;
-      padding: 40px 20px;
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#f4f4f0;--white:#fff;--border:#e2e2dc;--text:#1a1a1a;
+      --muted:#888;--accent:#1a1a1a;--green:#2d6a2d;--green-bg:#edf7ed;
+      --green-border:#b8ddb8;--red:#c0392b;--radius:10px;
     }
-
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .subtitle {
-      color: #666;
-      font-size: 14px;
-      margin-bottom: 32px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 28px;
-      margin-bottom: 20px;
-      border: 1px solid #e8e8e8;
-    }
-
-    .card-title {
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #888;
-      margin-bottom: 18px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .field.full {
-      grid-column: 1 / -1;
-    }
-
-    label {
-      font-size: 13px;
-      font-weight: 500;
-      color: #444;
-    }
-
-    input, select {
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: inherit;
-      color: #1a1a1a;
-      background: #fafafa;
-      transition: border-color 0.15s, background 0.15s;
-      width: 100%;
-    }
-
-    input:focus, select:focus {
-      outline: none;
-      border-color: #1a1a1a;
-      background: white;
-    }
-
-    input[readonly] {
-      background: #f0f0f0;
-      color: #666;
-      cursor: not-allowed;
-    }
-
-    .computed-row {
-      display: flex;
-      gap: 14px;
-      margin-top: 4px;
-    }
-
-    .computed-row .field {
-      flex: 1;
-    }
-
-    .badge {
-      display: inline-block;
-      background: #f0f0f0;
-      color: #555;
-      font-size: 12px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      margin-left: 6px;
-      font-weight: 400;
-    }
-
-    .btn {
-      width: 100%;
-      padding: 14px;
-      background: #1a1a1a;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-      font-family: inherit;
-    }
-
-    .btn:hover {
-      background: #333;
-    }
-
-    .btn:active {
-      transform: scale(0.99);
-    }
-
-    .btn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .info-box {
-      background: #f8f8f5;
-      border: 1px solid #e8e8e0;
-      border-radius: 8px;
-      padding: 12px 14px;
-      font-size: 13px;
-      color: #666;
-      margin-top: 14px;
-      line-height: 1.6;
-    }
-
-    @media (max-width: 480px) {
-      .grid-2 { grid-template-columns: 1fr; }
-      .computed-row { flex-direction: column; }
-    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:32px 16px}
+    .container{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+    .header{text-align:center;padding:8px 0 4px}
+    .header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+    .header p{color:var(--muted);font-size:13px;margin-top:3px}
+    .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none}
+    .card-head-left{display:flex;align-items:center;gap:10px}
+    .card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+    .card-status{font-size:12px;font-weight:500;color:var(--green);background:var(--green-bg);border:1px solid var(--green-border);padding:2px 8px;border-radius:20px}
+    .card-status.warn{color:#92400e;background:#fef3c7;border-color:#fcd34d}
+    .card-body{padding:18px;padding-top:0;border-top:1px solid var(--border)}
+    .card-body.hidden{display:none}
+    .toggle-btn{font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px}
+    .toggle-btn:hover{background:var(--bg)}
+    .grid{display:grid;gap:12px}
+    .grid-2{grid-template-columns:1fr 1fr}
+    .field{display:flex;flex-direction:column;gap:5px}
+    .field.span-2{grid-column:1/-1}
+    label{font-size:12px;font-weight:500;color:#555}
+    label .req{color:var(--red)}
+    input,select{padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:#fafafa;width:100%;transition:border-color .12s,background .12s}
+    input:focus,select:focus{outline:none;border-color:var(--accent);background:var(--white)}
+    input[readonly]{background:#f0f0f0;color:#666;cursor:default}
+    input.computed{background:#f5f5f0;color:#444;font-weight:500}
+    .save-hint{font-size:11px;color:var(--muted);margin-top:8px}
+    .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:14px}
+    .drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:#f8f8f5}
+    .drop-zone p{font-size:14px;color:var(--muted);margin-bottom:6px}
+    .drop-zone span{font-size:12px;color:#aaa}
+    #fileInput{display:none}
+    .client-count{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;margin-top:14px;font-size:13px;color:var(--green);font-weight:500}
+    .client-count button{font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);padding:3px 10px;border-radius:6px;cursor:pointer;font-family:inherit}
+    .client-count button:hover{background:var(--white)}
+    .main-card .card-body{padding:18px}
+    .select-client{font-size:15px;padding:11px 13px;border:2px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;width:100%}
+    .select-client:focus{border-color:var(--accent);outline:none}
+    .divider{height:1px;background:var(--border);margin:16px 0}
+    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .btn-generate{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:14px;transition:opacity .15s,transform .1s;letter-spacing:-.2px}
+    .btn-generate:hover{opacity:.88}
+    .btn-generate:active{transform:scale(.99)}
+    .btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .shortcut{display:block;text-align:center;font-size:11px;color:var(--muted);margin-top:6px}
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+    .modal-bg.hidden{display:none}
+    .modal{background:var(--white);border-radius:14px;padding:24px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+    .modal h2{font-size:16px;font-weight:700;margin-bottom:6px}
+    .modal p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+    .modal .field{margin-bottom:14px}
+    .modal label{font-size:13px;margin-bottom:6px}
+    .modal-actions{display:flex;gap:10px;margin-top:20px}
+    .btn-secondary{flex:1;padding:10px;border:1px solid var(--border);background:var(--white);border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
+    .btn-primary{flex:2;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+    .error-msg{font-size:12px;color:var(--red);margin-top:4px}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;transition:transform .25s ease;z-index:200;white-space:nowrap}
+    .toast.show{transform:translateX(-50%) translateY(0)}
+    @media(max-width:520px){.grid-2,.row-3{grid-template-columns:1fr}.field.span-2{grid-column:1}}
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Attestation Fiscale SAP</h1>
-    <p class="subtitle">Service à la Personne · Crédit d'impôt 50%</p>
+<div class="container">
 
-    <!-- Bloc Coach -->
-    <div class="card">
-      <div class="card-title">Vos informations <span class="badge">Coach / Prestataire</span></div>
-      <div class="grid-2">
-        <div class="field">
-          <label>Prénom</label>
-          <input type="text" id="coachPrenom" placeholder="Jean" />
-        </div>
-        <div class="field">
-          <label>Nom</label>
-          <input type="text" id="coachNom" placeholder="Dupont" />
-        </div>
-        <div class="field full">
-          <label>Adresse complète</label>
-          <input type="text" id="coachAdresse" placeholder="12 rue des Lilas, 75001 Paris" />
-        </div>
-        <div class="field">
-          <label>N° d'agrément SAP</label>
-          <input type="text" id="coachAgrement" placeholder="SAP123456789" />
-        </div>
-        <div class="field">
-          <label>Année fiscale</label>
-          <select id="annee">
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-            <option value="2025">2025</option>
+  <div class="header">
+    <h1>Attestation Fiscale SAP</h1>
+    <p>Crédit d'impôt 50% · Service à la Personne</p>
+  </div>
+
+  <!-- 1. Coach info -->
+  <div class="card" id="cardCoach">
+    <div class="card-head" onclick="toggleCard('Coach')">
+      <div class="card-head-left">
+        <span class="card-title">Vos informations</span>
+        <span class="card-status warn" id="statusCoach">À compléter</span>
+      </div>
+      <button class="toggle-btn" id="toggleCoach">Modifier</button>
+    </div>
+    <div class="card-body" id="bodyCoach">
+      <div style="height:14px"></div>
+      <div class="grid grid-2">
+        <div class="field"><label>Prénom <span class="req">*</span></label><input id="cPrenom" placeholder="Jean" oninput="saveCoach()" /></div>
+        <div class="field"><label>Nom <span class="req">*</span></label><input id="cNom" placeholder="Dupont" oninput="saveCoach()" /></div>
+        <div class="field span-2"><label>Adresse complète <span class="req">*</span></label><input id="cAdresse" placeholder="12 rue des Lilas, 75001 Paris" oninput="saveCoach()" /></div>
+        <div class="field"><label>N° agrément SAP <span class="req">*</span></label><input id="cAgrement" placeholder="SAP123456789" oninput="saveCoach()" /></div>
+        <div class="field"><label>Année fiscale</label>
+          <select id="cAnnee" onchange="saveCoach()">
+            <option value="2024">2024</option><option value="2025">2025</option><option value="2023">2023</option>
           </select>
         </div>
       </div>
+      <p class="save-hint">Sauvegardé automatiquement dans votre navigateur.</p>
     </div>
+  </div>
 
-    <!-- Bloc Client -->
-    <div class="card">
-      <div class="card-title">Informations client <span class="badge">Bénéficiaire</span></div>
-      <div class="grid-2">
-        <div class="field">
-          <label>Prénom</label>
-          <input type="text" id="clientPrenom" placeholder="Marie" />
-        </div>
-        <div class="field">
-          <label>Nom</label>
-          <input type="text" id="clientNom" placeholder="Martin" />
-        </div>
-        <div class="field full">
-          <label>Adresse complète</label>
-          <input type="text" id="clientAdresse" placeholder="8 avenue Victor Hugo, 69001 Lyon" />
-        </div>
+  <!-- 2. Import clients -->
+  <div class="card" id="cardImport">
+    <div class="card-head" onclick="toggleCard('Import')">
+      <div class="card-head-left">
+        <span class="card-title">Base clients</span>
+        <span class="card-status warn" id="statusImport">Aucun fichier</span>
+      </div>
+      <button class="toggle-btn" id="toggleImport">Importer</button>
+    </div>
+    <div class="card-body" id="bodyImport">
+      <div style="height:14px"></div>
+      <div class="drop-zone" id="dropZone"
+        onclick="document.getElementById('fileInput').click()"
+        ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <p>Glissez votre fichier ici ou cliquez pour parcourir</p>
+        <span>CSV, Excel (.xlsx, .xls) acceptés</span>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="handleFile(this.files[0])" />
+      <div class="client-count hidden" id="clientCount">
+        <span id="clientCountText"></span>
+        <button onclick="document.getElementById('fileInput').click()">Réimporter</button>
       </div>
     </div>
+  </div>
 
-    <!-- Bloc Séances -->
-    <div class="card">
-      <div class="card-title">Détail des séances</div>
-      <div class="grid-2">
+  <!-- 3. Générer -->
+  <div class="card main-card">
+    <div class="card-head" style="cursor:default">
+      <div class="card-head-left">
+        <span class="card-title">Générer une attestation</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>Client <span class="req">*</span></label>
+        <select class="select-client" id="clientSelect" onchange="onClientSelect()">
+          <option value="">— Sélectionner un client —</option>
+        </select>
+      </div>
+      <div class="field" id="fieldAdresse" style="margin-top:10px;display:none">
+        <label>Adresse du client</label>
+        <input id="clientAdresse" placeholder="Non renseignée — saisie manuelle possible" />
+      </div>
+      <div class="divider"></div>
+      <div class="row-3">
         <div class="field">
-          <label>Montant total payé (€)</label>
+          <label>Montant annuel (€) <span class="req">*</span></label>
           <input type="number" id="montant" placeholder="1200" min="0" step="0.01" oninput="calculer()" />
         </div>
         <div class="field">
-          <label>Nombre de séances</label>
+          <label>Nb de séances <span class="req">*</span></label>
           <input type="number" id="nbSeances" placeholder="40" min="1" oninput="calculer()" />
         </div>
         <div class="field">
-          <label>Durée par séance (h)</label>
+          <label>Durée / séance (h)</label>
           <input type="number" id="dureeSeance" value="1" min="0.5" step="0.5" oninput="calculer()" />
         </div>
       </div>
-      <div class="computed-row">
+      <div class="row-3" style="margin-top:10px">
         <div class="field">
           <label>Total heures</label>
-          <input type="text" id="totalHeures" readonly placeholder="—" />
+          <input class="computed" id="totalH" readonly placeholder="—" />
         </div>
         <div class="field">
           <label>Taux horaire</label>
-          <input type="text" id="tauxHoraire" readonly placeholder="—" />
+          <input class="computed" id="tauxH" readonly placeholder="—" />
+        </div>
+        <div class="field">
+          <label>Crédit d'impôt (50%)</label>
+          <input class="computed" id="creditImpot" readonly placeholder="—" />
         </div>
       </div>
-      <div class="info-box">
-        Le bénéficiaire peut déduire <strong>50% du montant</strong> de ses impôts, soit jusqu'à <strong id="creditEstime">—</strong> de crédit d'impôt.
-      </div>
+      <button class="btn-generate" id="btnGen" onclick="genererPDF()">
+        ⬇ Télécharger l'attestation PDF
+      </button>
+      <span class="shortcut">Raccourci clavier : Ctrl + Entrée</span>
     </div>
-
-    <button class="btn" onclick="genererPDF()" id="btnGenerer">
-      Télécharger l'attestation PDF
-    </button>
   </div>
 
-  <script>
-    function calculer() {
-      const montant = parseFloat(document.getElementById('montant').value) || 0;
-      const nb = parseFloat(document.getElementById('nbSeances').value) || 0;
-      const duree = parseFloat(document.getElementById('dureeSeance').value) || 1;
+</div>
 
-      const totalH = nb * duree;
-      const taux = totalH > 0 ? montant / totalH : 0;
-      const credit = montant * 0.5;
+<!-- Modal mapping colonnes -->
+<div class="modal-bg hidden" id="modalBg">
+  <div class="modal">
+    <h2>Associer les colonnes</h2>
+    <p>Votre fichier contient ces colonnes. Indiquez à quoi correspond chacun des champs requis.</p>
+    <div id="mappingFields"></div>
+    <div id="mappingError" class="error-msg hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn-primary" onclick="confirmMapping()">Importer les clients</button>
+    </div>
+  </div>
+</div>
 
-      document.getElementById('totalHeures').value = totalH > 0 ? totalH.toFixed(1) + ' h' : '';
-      document.getElementById('tauxHoraire').value = taux > 0 ? taux.toFixed(2) + ' €/h' : '';
-      document.getElementById('creditEstime').textContent = credit > 0 ? credit.toFixed(2) + ' €' : '—';
+<div class="toast" id="toast"></div>
+
+<script>
+const SK_COACH   = 'sap_coach';
+const SK_CLIENTS = 'sap_clients';
+
+const PATTERNS = {
+  prenom:  ['prenom','prénom','firstname','first_name','first name','given','givenname','forename'],
+  nom:     ['nom','lastname','last_name','last name','surname','family','familyname','nom de famille'],
+  adresse: ['adresse','address','domicile','adresse complete','adresse postale','rue','street'],
+  email:   ['email','mail','courriel','e-mail','adresse email'],
+};
+
+let clients    = [];
+let rawHeaders = [];
+let rawRows    = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadCoach();
+  loadClients();
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') genererPDF();
+  });
+});
+
+// ── Coach ──────────────────────────────────────────────────────────────────
+function saveCoach() {
+  localStorage.setItem(SK_COACH, JSON.stringify({
+    prenom: v('cPrenom'), nom: v('cNom'),
+    adresse: v('cAdresse'), agrement: v('cAgrement'), annee: v('cAnnee'),
+  }));
+  updateCoachStatus();
+}
+
+function loadCoach() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SK_COACH) || '{}');
+    if (d.prenom)   set('cPrenom',   d.prenom);
+    if (d.nom)      set('cNom',      d.nom);
+    if (d.adresse)  set('cAdresse',  d.adresse);
+    if (d.agrement) set('cAgrement', d.agrement);
+    if (d.annee)    document.getElementById('cAnnee').value = d.annee;
+    updateCoachStatus();
+  } catch {}
+}
+
+function updateCoachStatus() {
+  const ok = v('cPrenom') && v('cNom') && v('cAdresse') && v('cAgrement');
+  const el = document.getElementById('statusCoach');
+  el.textContent = ok ? '✓ Sauvegardé' : 'À compléter';
+  el.className   = 'card-status' + (ok ? '' : ' warn');
+  if (ok) collapseCard('Coach');
+}
+
+// ── Card toggle ────────────────────────────────────────────────────────────
+function toggleCard(name) {
+  const body   = document.getElementById('body' + name);
+  const toggle = document.getElementById('toggle' + name);
+  const isHidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !isHidden);
+  toggle.textContent = isHidden ? 'Réduire' : 'Modifier';
+}
+
+function collapseCard(name) {
+  document.getElementById('body' + name).classList.add('hidden');
+  document.getElementById('toggle' + name).textContent = 'Modifier';
+}
+
+// ── File import ────────────────────────────────────────────────────────────
+function onDragOver(e)  { e.preventDefault(); document.getElementById('dropZone').classList.add('drag'); }
+function onDragLeave()  { document.getElementById('dropZone').classList.remove('drag'); }
+function onDrop(e)      { e.preventDefault(); onDragLeave(); handleFile(e.dataTransfer.files[0]); }
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => parseCSV(e.target.result);
+    reader.readAsText(file, 'UTF-8');
+  } else if (['xlsx','xls'].includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb  = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      parseCSV(XLSX.utils.sheet_to_csv(ws));
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    toast('Format non supporté. Utilisez CSV ou Excel.', true);
+  }
+}
+
+function parseCSV(csv) {
+  const lines = csv.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) { toast('Fichier vide ou invalide.', true); return; }
+
+  const sep = [',',';','\t'].reduce((best, c) =>
+    (lines[0].split(c).length > lines[0].split(best).length ? c : best), ',');
+
+  rawHeaders = splitLine(lines[0], sep);
+  rawRows    = lines.slice(1).map(l => splitLine(l, sep));
+
+  const mapping = autoDetect(rawHeaders);
+  if (mapping.prenom !== -1 && mapping.nom !== -1) {
+    applyMapping(mapping);
+  } else {
+    showMappingModal(mapping);
+  }
+}
+
+function splitLine(line, sep) {
+  const res = []; let cur = ''; let inQ = false;
+  for (const c of line) {
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === sep && !inQ) { res.push(cur.trim()); cur = ''; continue; }
+    cur += c;
+  }
+  res.push(cur.trim());
+  return res;
+}
+
+function norm(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[\s_\-()']/g,'');
+}
+
+function autoDetect(headers) {
+  const hn = headers.map(norm);
+  const find = pats => {
+    for (const p of pats) {
+      const np = norm(p);
+      const i = hn.findIndex(h => h === np || h.includes(np) || np.includes(h));
+      if (i !== -1) return i;
     }
+    return -1;
+  };
+  return { prenom: find(PATTERNS.prenom), nom: find(PATTERNS.nom), adresse: find(PATTERNS.adresse), email: find(PATTERNS.email) };
+}
 
-    function val(id) {
-      return document.getElementById(id).value.trim();
-    }
+function applyMapping(mapping) {
+  clients = rawRows.map(row => ({
+    prenom:  mapping.prenom  >= 0 ? (row[mapping.prenom]  || '').trim() : '',
+    nom:     mapping.nom     >= 0 ? (row[mapping.nom]     || '').trim() : '',
+    adresse: mapping.adresse >= 0 ? (row[mapping.adresse] || '').trim() : '',
+    email:   mapping.email   >= 0 ? (row[mapping.email]   || '').trim() : '',
+  })).filter(c => c.prenom || c.nom);
+  clients.sort((a,b) => (a.nom+a.prenom).localeCompare(b.nom+b.prenom, 'fr'));
+  localStorage.setItem(SK_CLIENTS, JSON.stringify(clients));
+  refreshClientSelect();
+  collapseCard('Import');
+  toast(`${clients.length} clients importés ✓`);
+}
 
-    function genererPDF() {
-      // Validation basique
-      const requis = [
-        ['coachPrenom', 'Votre prénom'],
-        ['coachNom', 'Votre nom'],
-        ['coachAdresse', 'Votre adresse'],
-        ['coachAgrement', 'N° d\'agrément SAP'],
-        ['clientPrenom', 'Prénom du client'],
-        ['clientNom', 'Nom du client'],
-        ['clientAdresse', 'Adresse du client'],
-        ['montant', 'Montant total'],
-        ['nbSeances', 'Nombre de séances'],
-      ];
+function loadClients() {
+  try {
+    const saved = localStorage.getItem(SK_CLIENTS);
+    if (saved) { clients = JSON.parse(saved); refreshClientSelect(); }
+  } catch {}
+}
 
-      for (const [id, label] of requis) {
-        if (!val(id)) {
-          alert(`Champ requis : ${label}`);
-          document.getElementById(id).focus();
-          return;
-        }
-      }
+function refreshClientSelect() {
+  const sel = document.getElementById('clientSelect');
+  sel.innerHTML = '<option value="">— Sélectionner un client —</option>';
+  clients.forEach((c, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = [c.nom, c.prenom].filter(Boolean).join(' ');
+    sel.appendChild(o);
+  });
+  const countEl  = document.getElementById('clientCount');
+  const countTxt = document.getElementById('clientCountText');
+  countEl.classList.remove('hidden');
+  countTxt.textContent = `${clients.length} clients chargés`;
+  const st = document.getElementById('statusImport');
+  st.textContent = `${clients.length} clients`;
+  st.className = 'card-status';
+}
 
-      const btn = document.getElementById('btnGenerer');
-      btn.disabled = true;
-      btn.textContent = 'Génération en cours…';
+// ── Mapping modal ──────────────────────────────────────────────────────────
+function showMappingModal(detected) {
+  const defs = [
+    {key:'prenom',  label:'Prénom',  req:true},
+    {key:'nom',     label:'Nom',     req:true},
+    {key:'adresse', label:'Adresse', req:false},
+    {key:'email',   label:'Email',   req:false},
+  ];
+  const container = document.getElementById('mappingFields');
+  container.innerHTML = '';
+  defs.forEach(f => {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    const lbl = document.createElement('label');
+    lbl.innerHTML = f.label + (f.req ? ' <span class="req">*</span>' : '');
+    const sel = document.createElement('select');
+    sel.id = 'map_' + f.key;
+    const opt0 = document.createElement('option');
+    opt0.value = -1; opt0.textContent = '— Ignorer —';
+    sel.appendChild(opt0);
+    rawHeaders.forEach((h,i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = h;
+      if (detected[f.key] === i) o.selected = true;
+      sel.appendChild(o);
+    });
+    wrap.appendChild(lbl); wrap.appendChild(sel);
+    container.appendChild(wrap);
+  });
+  document.getElementById('modalBg').classList.remove('hidden');
+}
 
-      try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+function closeModal() { document.getElementById('modalBg').classList.add('hidden'); }
 
-        const annee = val('annee');
-        const coachNomComplet = `${val('coachPrenom')} ${val('coachNom')}`;
-        const clientNomComplet = `${val('clientPrenom')} ${val('clientNom')}`;
-        const montant = parseFloat(document.getElementById('montant').value);
-        const nb = parseFloat(document.getElementById('nbSeances').value);
-        const duree = parseFloat(document.getElementById('dureeSeance').value) || 1;
-        const totalH = nb * duree;
-        const taux = totalH > 0 ? (montant / totalH).toFixed(2) : '—';
-        const credit = (montant * 0.5).toFixed(2);
+function confirmMapping() {
+  const mapping = {};
+  ['prenom','nom','adresse','email'].forEach(k => {
+    mapping[k] = parseInt(document.getElementById('map_' + k).value);
+  });
+  if (mapping.prenom < 0 && mapping.nom < 0) {
+    const err = document.getElementById('mappingError');
+    err.textContent = 'Associez au moins le Prénom ou le Nom.';
+    err.classList.remove('hidden');
+    return;
+  }
+  closeModal();
+  applyMapping(mapping);
+}
 
-        const margin = 25;
-        const pageW = 210;
-        const contentW = pageW - margin * 2;
-        let y = 25;
+// ── Client selection ───────────────────────────────────────────────────────
+function onClientSelect() {
+  const idx = document.getElementById('clientSelect').value;
+  const adresseField = document.getElementById('fieldAdresse');
+  if (idx === '') { adresseField.style.display = 'none'; return; }
+  const c = clients[parseInt(idx)];
+  set('clientAdresse', c.adresse);
+  adresseField.style.display = '';
+  document.getElementById('montant').focus();
+}
 
-        // Helpers
-        const line = (x1, y1, x2, y2, color = [220, 220, 220]) => {
-          doc.setDrawColor(...color);
-          doc.line(x1, y1, x2, y2);
-        };
-        const text = (t, x, yPos, opts = {}) => {
-          doc.text(t, x, yPos, opts);
-        };
+// ── Calculations ───────────────────────────────────────────────────────────
+function calculer() {
+  const m  = parseFloat(document.getElementById('montant').value)    || 0;
+  const nb = parseFloat(document.getElementById('nbSeances').value)  || 0;
+  const d  = parseFloat(document.getElementById('dureeSeance').value)|| 1;
+  const h  = nb * d;
+  set('totalH',     h > 0 ? h.toFixed(1) + ' h'      : '');
+  set('tauxH',      h > 0 ? (m/h).toFixed(2) + ' €/h': '');
+  set('creditImpot',m > 0 ? (m*.5).toFixed(2) + ' €' : '');
+}
 
-        // ── En-tête ─────────────────────────────────────────────────────────
-        doc.setFillColor(26, 26, 26);
-        doc.rect(0, 0, 210, 38, 'F');
+// ── PDF ────────────────────────────────────────────────────────────────────
+function genererPDF() {
+  const coach = { prenom:v('cPrenom'), nom:v('cNom'), adresse:v('cAdresse'), agrement:v('cAgrement'), annee:v('cAnnee') };
+  if (!coach.prenom||!coach.nom||!coach.adresse||!coach.agrement) {
+    toast('Complétez vos informations coach d\'abord.', true);
+    document.getElementById('bodyCoach').classList.remove('hidden');
+    return;
+  }
+  const idx = document.getElementById('clientSelect').value;
+  if (idx === '') { toast('Sélectionnez un client.', true); return; }
+  const c = clients[parseInt(idx)];
+  const montant = parseFloat(document.getElementById('montant').value);
+  const nb      = parseFloat(document.getElementById('nbSeances').value);
+  if (!montant||montant<=0) { toast('Entrez le montant annuel.', true); document.getElementById('montant').focus(); return; }
+  if (!nb||nb<=0)           { toast('Entrez le nombre de séances.', true); document.getElementById('nbSeances').focus(); return; }
 
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(17);
-        text('ATTESTATION FISCALE', margin, 18);
+  const duree  = parseFloat(document.getElementById('dureeSeance').value)||1;
+  const totalH = nb*duree;
+  const taux   = (montant/totalH).toFixed(2);
+  const credit = (montant*.5).toFixed(2);
+  const today  = new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+  const clientNomComplet = [c.prenom, c.nom].filter(Boolean).join(' ');
+  const clientAdresse = v('clientAdresse') || 'Non renseignée';
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        text('Service à la Personne · Crédit d\'impôt 50%', margin, 27);
+  const btn = document.getElementById('btnGen');
+  btn.disabled = true; btn.textContent = 'Génération…';
 
-        doc.setFontSize(10);
-        text(`Année ${annee}`, pageW - margin, 27, { align: 'right' });
+  try {
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF({format:'a4',unit:'mm'});
+    const M=25, W=210, CW=W-M*2;
+    let y=25;
+    const t=(s,x,yy,o={})=>doc.text(s,x,yy,o);
+    const ln=(x1,y1,x2,y2,c=[210,210,210])=>{doc.setDrawColor(...c);doc.line(x1,y1,x2,y2);};
 
-        y = 52;
-        doc.setTextColor(26, 26, 26);
+    doc.setFillColor(26,26,26); doc.rect(0,0,210,40,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); t('ATTESTATION FISCALE',M,19);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    t('Service à la Personne · Crédit d\'impôt 50%',M,28);
+    t(`Année ${coach.annee}`,W-M,28,{align:'right'});
 
-        // ── Bloc prestataire ────────────────────────────────────────────────
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(130, 130, 130);
-        text('PRESTATAIRE', margin, y);
+    y=54; doc.setTextColor(26,26,26);
 
-        y += 6;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(26, 26, 26);
-        text(coachNomComplet, margin, y);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(150,150,150); t('PRESTATAIRE',M,y); y+=6;
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26); t(`${coach.prenom} ${coach.nom}`,M,y); y+=5;
+    doc.setFontSize(9.5); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+    t(coach.adresse,M,y); y+=5; t(`N° d'agrément SAP : ${coach.agrement}`,M,y);
 
-        y += 5;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
-        text(val('coachAdresse'), margin, y);
+    y+=13; ln(M,y,W-M,y); y+=10;
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(150,150,150); t('BÉNÉFICIAIRE',M,y); y+=6;
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26); t(clientNomComplet,M,y); y+=5;
+    doc.setFontSize(9.5); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80); t(clientAdresse,M,y);
 
-        y += 5;
-        text(`N° d'agrément SAP : ${val('coachAgrement')}`, margin, y);
+    y+=14; ln(M,y,W-M,y); y+=12;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(40,40,40);
+    const intro = `Je soussigné(e) ${coach.prenom} ${coach.nom}, prestataire de services à la personne agréé(e) sous le numéro ${coach.agrement}, atteste avoir accompli au domicile de ${clientNomComplet} les prestations suivantes au titre de l'année ${coach.annee} :`;
+    const il = doc.splitTextToSize(intro, CW); doc.text(il,M,y); y+=il.length*5.5+8;
 
-        // ── Séparateur ──────────────────────────────────────────────────────
-        y += 12;
-        line(margin, y, pageW - margin, y);
+    const rows=[
+      ['Nature de la prestation','Coaching sportif à domicile'],
+      ['Montant total des dépenses',`${montant.toFixed(2)} €`],
+      ['Nombre de séances',`${nb}`],
+      ['Durée par séance',`${duree} h`],
+      ['Nombre total d\'heures',`${totalH.toFixed(1)} h`],
+      ['Taux horaire',`${taux} €/h`],
+    ];
+    rows.forEach((row,i)=>{
+      const ry=y+i*9;
+      if(i%2===0){doc.setFillColor(248,248,245);doc.rect(M,ry-5.5,CW,9,'F');}
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(100,100,100);t(row[0],M+3,ry);
+      doc.setFont('helvetica','bold');doc.setTextColor(26,26,26);t(row[1],M+94,ry);
+    });
+    y+=rows.length*9+10;
 
-        // ── Bloc bénéficiaire ────────────────────────────────────────────────
-        y += 10;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(130, 130, 130);
-        text('BÉNÉFICIAIRE', margin, y);
+    doc.setFillColor(237,247,237);doc.setDrawColor(184,221,184);doc.roundedRect(M,y,CW,16,3,3,'FD');
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(45,106,45);
+    t(`Crédit d'impôt estimé (50%) : ${credit} €`,W/2,y+10,{align:'center'});
 
-        y += 6;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(26, 26, 26);
-        text(clientNomComplet, margin, y);
+    y+=26;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(140,140,140);
+    const legal=`Cette attestation est établie conformément à l'article L.7233-1 du Code du travail et à l'article 199 sexdecies du Code général des impôts. Elle doit être conservée et peut être réclamée par l'administration fiscale.`;
+    const ll=doc.splitTextToSize(legal,CW);doc.text(ll,M,y);y+=ll.length*4.5+16;
 
-        y += 5;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
-        text(val('clientAdresse'), margin, y);
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(80,80,80);
+    t(`Fait à __________________, le ${today}`,M,y);y+=16;
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(26,26,26);
+    t('Signature du prestataire :',M,y);ln(M,y+18,M+80,y+18,[180,180,180]);
 
-        // ── Séparateur ──────────────────────────────────────────────────────
-        y += 14;
-        line(margin, y, pageW - margin, y);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(200,200,200);
+    t(`Document généré le ${today} · Attestation Fiscale SAP ${coach.annee}`,W/2,288,{align:'center'});
 
-        // ── Corps de l'attestation ───────────────────────────────────────────
-        y += 12;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10.5);
-        doc.setTextColor(40, 40, 40);
+    const fname=`attestation_${coach.annee}_${(c.nom||'client').toLowerCase().replace(/\s+/g,'_')}.pdf`;
+    doc.save(fname);
 
-        const intro = `Je soussigné(e) ${coachNomComplet}, prestataire de services à la personne agréé(e) sous le numéro ${val('coachAgrement')}, atteste avoir accompli au domicile de ${clientNomComplet} les prestations suivantes au titre de l'année ${annee} :`;
-        const introLines = doc.splitTextToSize(intro, contentW);
-        doc.text(introLines, margin, y);
-        y += introLines.length * 5.5 + 6;
+    // Reset for next client
+    document.getElementById('clientSelect').value='';
+    document.getElementById('fieldAdresse').style.display='none';
+    ['clientAdresse','montant','nbSeances','totalH','tauxH','creditImpot'].forEach(id=>set(id,''));
+    document.getElementById('dureeSeance').value='1';
+    toast('PDF téléchargé ✓ — prêt pour le prochain client');
+    document.getElementById('clientSelect').focus();
 
-        // ── Tableau des données ──────────────────────────────────────────────
-        const rows = [
-          ['Nature de la prestation', 'Coaching sportif à domicile'],
-          ['Montant total des dépenses', `${montant.toFixed(2)} €`],
-          ['Nombre de séances', `${nb}`],
-          ['Durée par séance', `${duree} h`],
-          ['Nombre total d\'heures', `${totalH.toFixed(1)} h`],
-          ['Taux horaire', `${taux} €/h`],
-        ];
+  } catch(e) {
+    console.error(e);
+    toast('Erreur lors de la génération.', true);
+  } finally {
+    btn.disabled=false;
+    btn.textContent='⬇ Télécharger l\'attestation PDF';
+  }
+}
 
-        const col1W = 90;
-        const col2X = margin + col1W + 4;
-        const rowH = 9;
+function v(id)       { return document.getElementById(id).value.trim(); }
+function set(id,val) { document.getElementById(id).value = val ?? ''; }
 
-        for (let i = 0; i < rows.length; i++) {
-          const rowY = y + i * rowH;
-          if (i % 2 === 0) {
-            doc.setFillColor(248, 248, 245);
-            doc.rect(margin, rowY - 5.5, contentW, rowH, 'F');
-          }
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9.5);
-          doc.setTextColor(100, 100, 100);
-          text(rows[i][0], margin + 3, rowY);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(26, 26, 26);
-          text(rows[i][1], col2X, rowY);
-        }
-
-        y += rows.length * rowH + 6;
-
-        // ── Encadré crédit d'impôt ───────────────────────────────────────────
-        y += 4;
-        doc.setFillColor(240, 248, 240);
-        doc.setDrawColor(180, 220, 180);
-        doc.roundedRect(margin, y, contentW, 16, 3, 3, 'FD');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(40, 100, 40);
-        text(`Crédit d'impôt estimé (50%) : ${credit} €`, margin + contentW / 2, y + 10, { align: 'center' });
-
-        // ── Clause légale ────────────────────────────────────────────────────
-        y += 24;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(120, 120, 120);
-        const legal = `Cette attestation est établie conformément à l'article L.7233-1 du Code du travail et à l'article 199 sexdecies du Code général des impôts. Elle doit être conservée et peut être réclamée par l'administration fiscale.`;
-        const legalLines = doc.splitTextToSize(legal, contentW);
-        doc.text(legalLines, margin, y);
-
-        // ── Signature ────────────────────────────────────────────────────────
-        y += legalLines.length * 4.5 + 14;
-
-        const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
-        text(`Fait à __________________, le ${today}`, margin, y);
-
-        y += 16;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(26, 26, 26);
-        text('Signature du prestataire :', margin, y);
-
-        line(margin, y + 18, margin + 80, y + 18, [180, 180, 180]);
-
-        // ── Pied de page ─────────────────────────────────────────────────────
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(180, 180, 180);
-        text(`Document généré le ${today} · Attestation Fiscale SAP ${annee}`, pageW / 2, 288, { align: 'center' });
-
-        // ── Téléchargement ────────────────────────────────────────────────────
-        const nomFichier = `attestation_sap_${annee}_${val('clientNom').toLowerCase().replace(/\s+/g, '_')}.pdf`;
-        doc.save(nomFichier);
-
-      } catch (e) {
-        alert('Erreur lors de la génération du PDF. Vérifiez votre connexion internet.');
-        console.error(e);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Télécharger l\'attestation PDF';
-      }
-    }
-  </script>
+let toastTimer;
+function toast(msg, err=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = err ? '#c0392b' : '#1a1a1a';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
 </body>
 </html>
