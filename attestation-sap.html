@@ -529,6 +529,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     .btn-generate:hover{opacity:.88}
     .btn-generate:active{transform:scale(.99)}
     .btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn-email{width:100%;padding:13px;background:#fff;color:var(--accent);border:2px solid var(--accent);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;transition:background .15s,color .15s;letter-spacing:-.2px}
+    .btn-email:hover{background:#f5f5f0}
+    .btn-email:disabled{opacity:.4;cursor:not-allowed}
+    .no-email-hint{font-size:12px;color:var(--muted);text-align:center;margin-top:8px;display:none}
     .shortcut{display:block;text-align:center;font-size:11px;color:var(--muted);margin-top:6px}
 
     /* Individual */
@@ -767,6 +771,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>Crédit d'impôt (50%)</label><input class="computed" id="creditImpot" readonly placeholder="—" /></div>
         </div>
         <button class="btn-generate" id="btnGen" onclick="genererPDF()">⬇ Télécharger l'attestation PDF</button>
+        <button class="btn-email" id="btnEmail" onclick="envoyerEmail()" style="display:none">📧 Envoyer par email au client</button>
+        <p class="no-email-hint" id="noEmailHint">Ajoutez l'email du client pour activer l'envoi direct.</p>
         <span class="shortcut">Raccourci : Ctrl + Entrée</span>
       </div>
 
@@ -1221,9 +1227,24 @@ function deleteClient(idx) {
 function onClientSelect() {
   const idx = document.getElementById('clientSelect').value;
   const adresseField = document.getElementById('fieldAdresse');
-  if (idx==='') { adresseField.style.display='none'; return; }
-  set('clientAdresse', clients[parseInt(idx)].adresse);
+  const btnEmail     = document.getElementById('btnEmail');
+  const noEmailHint  = document.getElementById('noEmailHint');
+  if (idx==='') {
+    adresseField.style.display='none';
+    btnEmail.style.display='none';
+    noEmailHint.style.display='none';
+    return;
+  }
+  const c = clients[parseInt(idx)];
+  set('clientAdresse', c.adresse);
   adresseField.style.display='';
+  if (c.email) {
+    btnEmail.style.display='';
+    noEmailHint.style.display='none';
+  } else {
+    btnEmail.style.display='none';
+    noEmailHint.style.display='block';
+  }
   document.getElementById('montant').focus();
 }
 
@@ -1426,6 +1447,68 @@ async function genererPDF() {
     document.getElementById('clientSelect').focus();
   } catch(e) { console.error(e); toast('Erreur : ' + (e.message || e), true); }
   finally { btn.disabled=false; btn.textContent='⬇ Télécharger l\'attestation PDF'; }
+}
+
+// ─── Email send ───────────────────────────────────────────────────────────────
+async function envoyerEmail() {
+  const coach = validateCoach(); if (!coach) return;
+  const idx = document.getElementById('clientSelect').value;
+  if (idx==='') { toast('Sélectionnez un client.', true); return; }
+  const c = clients[parseInt(idx)];
+  if (!c.email) { toast('Ce client n\'a pas d\'adresse email.', true); return; }
+
+  const montant = parseFloat(document.getElementById('montant').value);
+  const nb      = parseFloat(document.getElementById('nbSeances').value);
+  if (!montant||montant<=0) { toast('Entrez le montant annuel.', true); document.getElementById('montant').focus(); return; }
+  if (!nb||nb<=0)           { toast('Entrez le nombre de séances.', true); document.getElementById('nbSeances').focus(); return; }
+  const duree = parseFloat(document.getElementById('dureeSeance').value)||1;
+  c.adresse = v('clientAdresse') || c.adresse;
+
+  const btn = document.getElementById('btnEmail');
+  btn.disabled = true; btn.textContent = '📧 Envoi en cours…';
+
+  try {
+    const doc      = await buildPDF(coach, c, montant, nb, duree);
+    const pdfBase64 = doc.output('base64');
+    const fileName  = `attestation_${coach.annee}_${(c.nom||'client').toLowerCase().replace(/\s+/g,'_')}.pdf`;
+    const credit    = (montant * 0.5).toFixed(2);
+
+    const resp = await fetch('/api/send-email', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to:        c.email,
+        pdfBase64,
+        fileName,
+        coachName: `${coach.prenom} ${coach.nom}`,
+        annee:     coach.annee,
+        credit,
+      }),
+    });
+
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Erreur serveur');
+
+    // Reset form
+    document.getElementById('clientSelect').value = '';
+    document.getElementById('fieldAdresse').style.display = 'none';
+    btn.style.display = 'none';
+    document.getElementById('noEmailHint').style.display = 'none';
+    ['clientAdresse','montant','nbSeances','totalH','tauxH','creditImpot'].forEach(id => set(id,''));
+    document.getElementById('dureeSeance').value = '1';
+    toast(`📧 Attestation envoyée à ${c.email} ✓`);
+    document.getElementById('clientSelect').focus();
+
+  } catch(e) {
+    console.error(e);
+    if (e.message && e.message.includes('fetch')) {
+      toast('Envoi email indisponible en local — déployez sur Vercel.', true);
+    } else {
+      toast('Erreur envoi : ' + e.message, true);
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Envoyer par email au client';
+  }
 }
 
 // ─── Batch PDF ────────────────────────────────────────────────────────────────
